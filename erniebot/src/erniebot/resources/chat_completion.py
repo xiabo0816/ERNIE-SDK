@@ -58,7 +58,7 @@ class ChatCompletion(EBResource, CreatableWithStreaming):
                 "ernie-3.5-8k": {
                     "model_id": "completions",
                 },
-                "ernie-turbo": {
+                "ernie-lite": {
                     "model_id": "eb-instant",
                 },
                 "ernie-4.0": {
@@ -91,7 +91,7 @@ class ChatCompletion(EBResource, CreatableWithStreaming):
                 "ernie-3.5-8k": {
                     "model_id": "completions",
                 },
-                "ernie-turbo": {
+                "ernie-lite": {
                     "model_id": "eb-instant",
                 },
                 "ernie-4.0": {
@@ -449,18 +449,7 @@ class ChatCompletion(EBResource, CreatableWithStreaming):
         return transform(ChatCompletionResponse.from_mapping, resp)
 
     def _check_model_kwargs(self, model_name: str, kwargs: Dict[str, Any]) -> None:
-        if model_name in ("ernie-turbo",):
-            for arg in (
-                "functions",
-                "stop",
-                "disable_search",
-                "enable_citation",
-                "tool_choice",
-            ):
-                if arg in kwargs:
-                    raise errors.InvalidArgumentError(f"`{arg}` is not supported by the {model_name} model.")
-
-        if model_name in ("ernie-speed", "ernie-speed-128k", "ernie-char-8k", "ernie-tiny-8k"):
+        if model_name in ("ernie-speed", "ernie-speed-128k", "ernie-char-8k", "ernie-tiny-8k", "ernie-lite"):
             for arg in (
                 "functions",
                 "disable_search",
@@ -519,10 +508,11 @@ class ChatCompletion(EBResource, CreatableWithStreaming):
             model,
             {
                 "ernie-bot": "ernie-3.5",
-                "ernie-bot-turbo": "ernie-turbo",
+                "ernie-bot-turbo": "ernie-lite",
                 "ernie-bot-4": "ernie-4.0",
                 "ernie-bot-8k": "ernie-3.5-8k",
                 "ernie-longtext": "ernie-3.5-8k",
+                "ernie-turbo": "ernie-lite",
             },
         )
 
