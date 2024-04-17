@@ -24,9 +24,9 @@ models = erniebot.Model.list()
 
 print(models)
 # ernie-3.5               文心大模型（ernie-3.5）
+# ernie-3.5-8k            文心大模型（ernie-3.5-8k）
 # ernie-lite              文心大模型（ernie-lite）
 # ernie-4.0               文心大模型（ernie-4.0）
-# ernie-longtext          文心大模型（ernie-longtext）
 # ernie-speed             文心大模型（ernie-speed）
 # ernie-speed-128k        文心大模型（ernie-speed-128k）
 # ernie-tiny-8k           文心大模型（ernie-tiny-8k）
@@ -69,7 +69,7 @@ erniebot api image.create --model ernie-vilg-v2 --prompt "画一只驴肉火烧"
 
 ### 对话补全（Chat Completion）
 
-ERNIE Bot提供具备对话补全能力的ernie-3.5、ernie-turbo、ernie-4.0、ernie-longtext等文心大模型。
+ERNIE Bot提供具备对话补全能力的ernie-3.5、ernie-turbo、ernie-4.0、ernie-3.5-8k等文心大模型。
 
 不同模型在效果、速度等方面各有千秋，大家可以根据实际场景的需求选择合适的模型。
 
