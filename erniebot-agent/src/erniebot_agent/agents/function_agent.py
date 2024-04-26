@@ -166,7 +166,6 @@ class FunctionAgent(Agent):
             num_steps_taken += 1
         response = self._create_stopped_response(chat_history, steps_taken)
         return response
-    
 
     async def _first_tool_step(
         self, chat_history: List[Message], selected_tool: BaseTool = None
@@ -184,7 +183,6 @@ class FunctionAgent(Agent):
         )
         return await self._schema_format(llm_resp, chat_history)
 
-
     async def _step(self, chat_history: List[Message]) -> Tuple[AgentStep, List[Message]]:
         """Run a step of the agent.
         Args:
@@ -196,8 +194,9 @@ class FunctionAgent(Agent):
         llm_resp = await self.run_llm(messages=input_messages)
         return await self._schema_format(llm_resp, chat_history)
 
-
-    async def _step_stream(self, chat_history: List[Message]) -> AsyncIterator[Tuple[AgentStep, List[Message]]]:
+    async def _step_stream(
+        self, chat_history: List[Message]
+    ) -> AsyncIterator[Tuple[AgentStep, List[Message]]]:
         """Run a step of the agent in streaming mode.
         Args:
             chat_history: The chat history to provide to the agent.
@@ -208,8 +207,9 @@ class FunctionAgent(Agent):
         async for llm_resp in self.run_llm_stream(messages=input_messages):
             yield await self._schema_format(llm_resp, chat_history)
 
-
-    async def _run_stream(self, prompt: str, files: Optional[Sequence[File]] = None) -> AsyncIterator[Tuple[AgentStep, List[Message]]]:
+    async def _run_stream(
+        self, prompt: str, files: Optional[Sequence[File]] = None
+    ) -> AsyncIterator[Tuple[AgentStep, List[Message]]]:
         """Run the agent with the given prompt and files in streaming mode.
         Args:
             prompt: The prompt for the agent to run.
@@ -259,7 +259,7 @@ class FunctionAgent(Agent):
                     # 此处为调用了Plugin之后直接结束的Plugin
                     curr_step = DEFAULT_FINISH_STEP
                     yield curr_step, new_messages
-                        
+
                 if isinstance(curr_step, EndStep):
                     is_finished = True
                     end_step_msgs.extend(new_messages)
@@ -269,7 +269,6 @@ class FunctionAgent(Agent):
         self.memory.add_message(run_input)
         end_step_msg = AIMessage(content="".join([item.content for item in end_step_msgs]))
         self.memory.add_message(end_step_msg)
-
 
     async def _schema_format(self, llm_resp, chat_history):
         """Convert the LLM response to the agent response schema.

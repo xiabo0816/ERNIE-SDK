@@ -133,7 +133,9 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         return agent_resp
 
     @final
-    async def run_stream(self, prompt: str, files: Optional[Sequence[File]] = None) -> AsyncIterator[AgentStep]:
+    async def run_stream(
+        self, prompt: str, files: Optional[Sequence[File]] = None
+    ) -> AsyncIterator[AgentStep]:
         """Run the agent asynchronously.
 
         Args:
@@ -180,7 +182,6 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         else:
             await self._callback_manager.on_llm_end(agent=self, llm=self.llm, response=llm_resp)
         return llm_resp
-        
 
     @final
     async def run_llm_stream(
@@ -209,7 +210,6 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         else:
             await self._callback_manager.on_llm_end(agent=self, llm=self.llm, response=llm_resp)
         return
-        
 
     @final
     async def run_tool(self, tool_name: str, tool_args: str) -> ToolResponse:
@@ -277,9 +277,11 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def _run_stream(self, prompt: str, files: Optional[Sequence[File]] = None) -> AsyncIterator[AgentStep]:
+    async def _run_stream(
+        self, prompt: str, files: Optional[Sequence[File]] = None
+    ) -> AsyncIterator[AgentStep]:
         raise NotImplementedError
-    
+
     async def _run_llm(self, messages: List[Message], **opts: Any) -> LLMResponse:
         for reserved_opt in ("stream", "system", "plugins"):
             if reserved_opt in opts:
@@ -299,7 +301,6 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         opts["plugins"] = self._plugins
         llm_ret = await self.llm.chat(messages, stream=False, functions=functions, **opts)
         return LLMResponse(message=llm_ret)
-        
 
     async def _run_llm_stream(self, messages: List[Message], **opts: Any) -> AsyncIterator[LLMResponse]:
         for reserved_opt in ("stream", "system", "plugins"):
@@ -321,7 +322,6 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         llm_ret = await self.llm.chat(messages, stream=True, functions=functions, **opts)
         async for msg in llm_ret:
             yield LLMResponse(message=msg)
-
 
     async def _run_tool(self, tool: BaseTool, tool_args: str) -> ToolResponse:
         parsed_tool_args = self._parse_tool_args(tool_args)
