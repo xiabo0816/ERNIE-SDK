@@ -2,6 +2,7 @@ import abc
 import json
 import logging
 from typing import (
+    AsyncIterator,
     Any,
     Dict,
     Final,
@@ -20,7 +21,7 @@ from erniebot_agent.agents.callback.callback_manager import CallbackManager
 from erniebot_agent.agents.callback.default import get_default_callbacks
 from erniebot_agent.agents.callback.handlers.base import CallbackHandler
 from erniebot_agent.agents.mixins import GradioMixin
-from erniebot_agent.agents.schema import AgentResponse, LLMResponse, ToolResponse
+from erniebot_agent.agents.schema import AgentResponse, LLMResponse, ToolResponse, AgentStep
 from erniebot_agent.chat_models.erniebot import BaseERNIEBot
 from erniebot_agent.file import (
     File,
@@ -132,6 +133,30 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         return agent_resp
 
     @final
+    async def run_stream(self, prompt: str, files: Optional[Sequence[File]] = None) -> AsyncIterator[AgentStep]:
+        """Run the agent asynchronously.
+
+        Args:
+            prompt: A natural language text describing the task that the agent
+                should perform.
+            files: A list of files that the agent can use to perform the task.
+        Returns:
+            Response AgentStep from the agent.
+        """
+        if files:
+            await self._ensure_managed_files(files)
+        await self._callback_manager.on_run_start(agent=self, prompt=prompt)
+        try:
+            async for step in self._run_stream(prompt, files):
+                yield step
+        except BaseException as e:
+            await self._callback_manager.on_run_error(agent=self, error=e)
+            raise e
+        else:
+            await self._callback_manager.on_run_end(agent=self, response=None)
+        return
+
+    @final
     async def run_llm(
         self,
         messages: List[Message],
@@ -155,6 +180,36 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         else:
             await self._callback_manager.on_llm_end(agent=self, llm=self.llm, response=llm_resp)
         return llm_resp
+        
+
+    @final
+    async def run_llm_stream(
+        self,
+        messages: List[Message],
+        **llm_opts: Any,
+    ) -> AsyncIterator[LLMResponse]:
+        """Run the LLM asynchronously.
+
+        Args:
+            messages: The input messages.
+            llm_opts: Options to pass to the LLM.
+
+        Returns:
+            Response from the LLM.
+        """
+        llm_resp = None
+        await self._callback_manager.on_llm_start(agent=self, llm=self.llm, messages=messages)
+        try:
+            # The LLM will return an async iterator.
+            async for llm_resp in self._run_llm_stream(messages, **(llm_opts or {})):
+                yield llm_resp
+        except (Exception, KeyboardInterrupt) as e:
+            await self._callback_manager.on_llm_error(agent=self, llm=self.llm, error=e)
+            raise e
+        else:
+            await self._callback_manager.on_llm_end(agent=self, llm=self.llm, response=llm_resp)
+        return
+        
 
     @final
     async def run_tool(self, tool_name: str, tool_args: str) -> ToolResponse:
@@ -221,6 +276,10 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
     async def _run(self, prompt: str, files: Optional[Sequence[File]] = None) -> AgentResponse:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    async def _run_stream(self, prompt: str, files: Optional[Sequence[File]] = None) -> AsyncIterator[AgentStep]:
+        raise NotImplementedError
+    
     async def _run_llm(self, messages: List[Message], **opts: Any) -> LLMResponse:
         for reserved_opt in ("stream", "system", "plugins"):
             if reserved_opt in opts:
@@ -240,6 +299,29 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         opts["plugins"] = self._plugins
         llm_ret = await self.llm.chat(messages, stream=False, functions=functions, **opts)
         return LLMResponse(message=llm_ret)
+        
+
+    async def _run_llm_stream(self, messages: List[Message], **opts: Any) -> AsyncIterator[LLMResponse]:
+        for reserved_opt in ("stream", "system", "plugins"):
+            if reserved_opt in opts:
+                raise TypeError(f"`{reserved_opt}` should not be set.")
+
+        if "functions" not in opts:
+            functions = self._tool_manager.get_tool_schemas()
+        else:
+            functions = opts.pop("functions")
+
+        if hasattr(self.llm, "system"):
+            _logger.warning(
+                "The `system` message has already been set in the agent;"
+                "the `system` message configured in ERNIEBot will become ineffective."
+            )
+        opts["system"] = self.system.content if self.system is not None else None
+        opts["plugins"] = self._plugins
+        llm_ret = await self.llm.chat(messages, stream=True, functions=functions, **opts)
+        async for msg in llm_ret:
+            yield LLMResponse(message=msg)
+
 
     async def _run_tool(self, tool: BaseTool, tool_args: str) -> ToolResponse:
         parsed_tool_args = self._parse_tool_args(tool_args)
