@@ -5,7 +5,12 @@ import pytest
 from erniebot_agent.agents import FunctionAgent
 from erniebot_agent.chat_models import ERNIEBot
 from erniebot_agent.memory import WholeMemory
-from erniebot_agent.memory.messages import AIMessage, AIMessageChunk, FunctionMessage, HumanMessage
+from erniebot_agent.memory.messages import (
+    AIMessage,
+    AIMessageChunk,
+    FunctionMessage,
+    HumanMessage,
+)
 from erniebot_agent.tools.calculator_tool import CalculatorTool
 
 ONE_HIT_PROMPT = "1+4等于几？"

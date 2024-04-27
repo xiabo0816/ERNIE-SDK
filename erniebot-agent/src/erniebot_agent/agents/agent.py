@@ -2,8 +2,8 @@ import abc
 import json
 import logging
 from typing import (
-    AsyncIterator,
     Any,
+    AsyncIterator,
     Dict,
     Final,
     Iterable,
@@ -21,7 +21,12 @@ from erniebot_agent.agents.callback.callback_manager import CallbackManager
 from erniebot_agent.agents.callback.default import get_default_callbacks
 from erniebot_agent.agents.callback.handlers.base import CallbackHandler
 from erniebot_agent.agents.mixins import GradioMixin
-from erniebot_agent.agents.schema import AgentResponse, LLMResponse, ToolResponse, AgentStep
+from erniebot_agent.agents.schema import (
+    AgentResponse,
+    AgentStep,
+    LLMResponse,
+    ToolResponse,
+)
 from erniebot_agent.chat_models.erniebot import BaseERNIEBot
 from erniebot_agent.file import (
     File,

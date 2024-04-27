@@ -13,7 +13,16 @@
 # limitations under the License.
 
 import logging
-from typing import Final, Iterable, List, Optional, Sequence, Tuple, Union, AsyncIterator
+from typing import (
+    AsyncIterator,
+    Final,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 from erniebot_agent.agents.agent import Agent
 from erniebot_agent.agents.callback.callback_manager import CallbackManager
@@ -31,7 +40,12 @@ from erniebot_agent.agents.schema import (
 from erniebot_agent.chat_models.erniebot import BaseERNIEBot
 from erniebot_agent.file import File, FileManager
 from erniebot_agent.memory import Memory
-from erniebot_agent.memory.messages import FunctionMessage, HumanMessage, Message, AIMessage
+from erniebot_agent.memory.messages import (
+    AIMessage,
+    FunctionMessage,
+    HumanMessage,
+    Message,
+)
 from erniebot_agent.tools.base import BaseTool
 from erniebot_agent.tools.tool_manager import ToolManager
 
