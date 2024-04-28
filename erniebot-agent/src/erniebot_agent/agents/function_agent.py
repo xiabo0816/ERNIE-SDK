@@ -182,7 +182,7 @@ class FunctionAgent(Agent):
         return response
 
     async def _first_tool_step(
-        self, chat_history: List[Message], selected_tool: BaseTool = None
+        self, chat_history: List[Message], selected_tool: Optional[BaseTool] = None
     ) -> Tuple[AgentStep, List[Message]]:
         input_messages = self.memory.get_messages() + chat_history
         if selected_tool is None:
@@ -254,7 +254,6 @@ class FunctionAgent(Agent):
                 _logger.warning(f"Selected tool [{tool.tool_name}] not work")
 
         is_finished = False
-        curr_step = None
         new_messages = []
         end_step_msgs = []
         while is_finished is False:
@@ -274,17 +273,19 @@ class FunctionAgent(Agent):
                     curr_step = DEFAULT_FINISH_STEP
                     yield curr_step, new_messages
 
-                if isinstance(curr_step, EndStep):
+                elif isinstance(curr_step, EndStep):
                     is_finished = True
                     end_step_msgs.extend(new_messages)
                     yield curr_step, new_messages
+                else:
+                    raise RuntimeError("Invalid step type")
             chat_history.extend(new_messages)
 
         self.memory.add_message(run_input)
         end_step_msg = AIMessage(content="".join([item.content for item in end_step_msgs]))
         self.memory.add_message(end_step_msg)
 
-    async def _schema_format(self, llm_resp, chat_history):
+    async def _schema_format(self, llm_resp, chat_history) -> Tuple[AgentStep, List[Message]]:
         """Convert the LLM response to the agent response schema.
         Args:
             llm_resp: The LLM response to convert.

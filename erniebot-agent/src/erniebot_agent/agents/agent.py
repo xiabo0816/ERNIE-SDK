@@ -22,6 +22,7 @@ from erniebot_agent.agents.callback.default import get_default_callbacks
 from erniebot_agent.agents.callback.handlers.base import CallbackHandler
 from erniebot_agent.agents.mixins import GradioMixin
 from erniebot_agent.agents.schema import (
+    DEFAULT_FINISH_STEP,
     AgentResponse,
     AgentStep,
     LLMResponse,
@@ -140,7 +141,7 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
     @final
     async def run_stream(
         self, prompt: str, files: Optional[Sequence[File]] = None
-    ) -> AsyncIterator[AgentStep]:
+    ) -> AsyncIterator[Tuple[AgentStep, List[Message]]]:
         """Run the agent asynchronously.
 
         Args:
@@ -154,14 +155,21 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
             await self._ensure_managed_files(files)
         await self._callback_manager.on_run_start(agent=self, prompt=prompt)
         try:
-            async for step in self._run_stream(prompt, files):
-                yield step
+            async for step, msg in self._run_stream(prompt, files):
+                yield (step, msg)
         except BaseException as e:
             await self._callback_manager.on_run_error(agent=self, error=e)
             raise e
         else:
-            await self._callback_manager.on_run_end(agent=self, response=None)
-        return
+            await self._callback_manager.on_run_end(
+                agent=self,
+                response=AgentResponse(
+                    text="Agent run stopped early.",
+                    chat_history=self.memory.get_messages(),
+                    steps=[step],
+                    status="STOPPED",
+                ),
+            )
 
     @final
     async def run_llm(
@@ -284,8 +292,16 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
     @abc.abstractmethod
     async def _run_stream(
         self, prompt: str, files: Optional[Sequence[File]] = None
-    ) -> AsyncIterator[AgentStep]:
-        raise NotImplementedError
+    ) -> AsyncIterator[Tuple[AgentStep, List[Message]]]:
+        """
+        Abstract asynchronous generator method that should be implemented by subclasses.
+        This method should yield a sequence of (AgentStep, List[Message]) tuples based on the given
+        prompt and optionally accompanying files.
+        """
+        if False:
+            # This conditional block is strictly for static type-checking purposes (e.g., mypy) and will not be executed.
+            only_for_mypy_type_check: Tuple[AgentStep, List[Message]] = (DEFAULT_FINISH_STEP, [])
+            yield only_for_mypy_type_check
 
     async def _run_llm(self, messages: List[Message], **opts: Any) -> LLMResponse:
         for reserved_opt in ("stream", "system", "plugins"):
