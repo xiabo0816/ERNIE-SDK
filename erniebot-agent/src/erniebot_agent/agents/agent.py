@@ -299,7 +299,8 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         prompt and optionally accompanying files.
         """
         if False:
-            # This conditional block is strictly for static type-checking purposes (e.g., mypy) and will not be executed.
+            # This conditional block is strictly for static type-checking purposes (e.g., mypy)
+            # and will not be executed.
             only_for_mypy_type_check: Tuple[AgentStep, List[Message]] = (DEFAULT_FINISH_STEP, [])
             yield only_for_mypy_type_check
 
