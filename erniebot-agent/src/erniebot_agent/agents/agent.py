@@ -142,14 +142,14 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
     async def run_stream(
         self, prompt: str, files: Optional[Sequence[File]] = None
     ) -> AsyncIterator[Tuple[AgentStep, List[Message]]]:
-        """Run the agent asynchronously.
+        """Run the agent asynchronously, returning an async iterator of responses.
 
         Args:
             prompt: A natural language text describing the task that the agent
                 should perform.
             files: A list of files that the agent can use to perform the task.
         Returns:
-            Response AgentStep from the agent.
+            Iterator of responses from the agent.
         """
         if files:
             await self._ensure_managed_files(files)
@@ -164,7 +164,7 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
             await self._callback_manager.on_run_end(
                 agent=self,
                 response=AgentResponse(
-                    text="Agent run stopped early.",
+                    text="Agent run stopped.",
                     chat_history=self.memory.get_messages(),
                     steps=[step],
                     status="STOPPED",
@@ -177,7 +177,7 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         messages: List[Message],
         **llm_opts: Any,
     ) -> LLMResponse:
-        """Run the LLM asynchronously.
+        """Run the LLM asynchronously, returning final response.
 
         Args:
             messages: The input messages.
@@ -202,14 +202,14 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         messages: List[Message],
         **llm_opts: Any,
     ) -> AsyncIterator[LLMResponse]:
-        """Run the LLM asynchronously.
+        """Run the LLM asynchronously, returning an async iterator of responses
 
         Args:
             messages: The input messages.
             llm_opts: Options to pass to the LLM.
 
         Returns:
-            Response from the LLM.
+            Iterator of responses from the LLM.
         """
         llm_resp = None
         await self._callback_manager.on_llm_start(agent=self, llm=self.llm, messages=messages)
@@ -305,6 +305,15 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
             yield only_for_mypy_type_check
 
     async def _run_llm(self, messages: List[Message], **opts: Any) -> LLMResponse:
+        """Run the LLM with the given messages and options.
+
+        Args:
+            messages: The input messages.
+            opts: Options to pass to the LLM.
+
+        Returns:
+            Response from the LLM.
+        """
         for reserved_opt in ("stream", "system", "plugins"):
             if reserved_opt in opts:
                 raise TypeError(f"`{reserved_opt}` should not be set.")
@@ -325,6 +334,15 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         return LLMResponse(message=llm_ret)
 
     async def _run_llm_stream(self, messages: List[Message], **opts: Any) -> AsyncIterator[LLMResponse]:
+        """Run the LLM, yielding an async iterator of responses.
+
+        Args:
+            messages: The input messages.
+            opts: Options to pass to the LLM.
+
+        Returns:
+            Async iterator of responses from the LLM.
+        """
         for reserved_opt in ("stream", "system", "plugins"):
             if reserved_opt in opts:
                 raise TypeError(f"`{reserved_opt}` should not be set.")

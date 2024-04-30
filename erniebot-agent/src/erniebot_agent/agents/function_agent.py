@@ -150,7 +150,7 @@ class FunctionAgent(Agent):
         chat_history.append(run_input)
 
         for tool in self._first_tools:
-            curr_step, new_messages = await self._first_tool_step(chat_history, selected_tool=tool)
+            curr_step, new_messages = await self._call_first_tools(chat_history, selected_tool=tool)
             if not isinstance(curr_step, EndStep):
                 chat_history.extend(new_messages)
                 num_steps_taken += 1
@@ -181,13 +181,13 @@ class FunctionAgent(Agent):
         response = self._create_stopped_response(chat_history, steps_taken)
         return response
 
-    async def _first_tool_step(
+    async def _call_first_tools(
         self, chat_history: List[Message], selected_tool: Optional[BaseTool] = None
     ) -> Tuple[AgentStep, List[Message]]:
         input_messages = self.memory.get_messages() + chat_history
         if selected_tool is None:
             llm_resp = await self.run_llm(messages=input_messages)
-            return await self._schema_format(llm_resp, chat_history)
+            return await self._process_step(llm_resp, chat_history)
 
         tool_choice = {"type": "function", "function": {"name": selected_tool.tool_name}}
         llm_resp = await self.run_llm(
@@ -195,7 +195,7 @@ class FunctionAgent(Agent):
             functions=[selected_tool.function_call_schema()],  # only regist one tool
             tool_choice=tool_choice,
         )
-        return await self._schema_format(llm_resp, chat_history)
+        return await self._process_step(llm_resp, chat_history)
 
     async def _step(self, chat_history: List[Message]) -> Tuple[AgentStep, List[Message]]:
         """Run a step of the agent.
@@ -206,7 +206,7 @@ class FunctionAgent(Agent):
         """
         input_messages = self.memory.get_messages() + chat_history
         llm_resp = await self.run_llm(messages=input_messages)
-        return await self._schema_format(llm_resp, chat_history)
+        return await self._process_step(llm_resp, chat_history)
 
     async def _step_stream(
         self, chat_history: List[Message]
@@ -219,7 +219,7 @@ class FunctionAgent(Agent):
         """
         input_messages = self.memory.get_messages() + chat_history
         async for llm_resp in self.run_llm_stream(messages=input_messages):
-            yield await self._schema_format(llm_resp, chat_history)
+            yield await self._process_step(llm_resp, chat_history)
 
     async def _run_stream(
         self, prompt: str, files: Optional[Sequence[File]] = None
@@ -244,7 +244,7 @@ class FunctionAgent(Agent):
         chat_history.append(run_input)
 
         for tool in self._first_tools:
-            curr_step, new_messages = await self._first_tool_step(chat_history, selected_tool=tool)
+            curr_step, new_messages = await self._call_first_tools(chat_history, selected_tool=tool)
             if not isinstance(curr_step, EndStep):
                 chat_history.extend(new_messages)
                 num_steps_taken += 1
@@ -285,8 +285,8 @@ class FunctionAgent(Agent):
         end_step_msg = AIMessage(content="".join([item.content for item in end_step_msgs]))
         self.memory.add_message(end_step_msg)
 
-    async def _schema_format(self, llm_resp, chat_history) -> Tuple[AgentStep, List[Message]]:
-        """Convert the LLM response to the agent response schema.
+    async def _process_step(self, llm_resp, chat_history) -> Tuple[AgentStep, List[Message]]:
+        """Process and execute a step of the agent from LLM response.
         Args:
             llm_resp: The LLM response to convert.
             chat_history: The chat history to provide to the agent.
@@ -296,6 +296,7 @@ class FunctionAgent(Agent):
         new_messages: List[Message] = []
         output_message = llm_resp.message  # AIMessage
         new_messages.append(output_message)
+        # handle function call
         if output_message.function_call is not None:
             tool_name = output_message.function_call["name"]
             tool_args = output_message.function_call["arguments"]
@@ -310,6 +311,7 @@ class FunctionAgent(Agent):
                 ),
                 new_messages,
             )
+        # handle plugin info with input/output files
         elif output_message.plugin_info is not None:
             file_manager = self.get_file_manager()
             return (
