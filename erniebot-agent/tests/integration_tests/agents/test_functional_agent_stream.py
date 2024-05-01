@@ -76,7 +76,7 @@ async def test_function_agent_run_no_hit(llm, tool, memory):
 
     tool_steps = [step for step, msgs in run_logs if not isinstance(step, EndStep)]
     assert len(tool_steps) == 0
-    
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("prompt", [ONE_HIT_PROMPT, NO_HIT_PROMPT])
