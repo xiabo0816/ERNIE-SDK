@@ -2,6 +2,7 @@ import abc
 import json
 import logging
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncIterator,
     Dict,
@@ -298,7 +299,8 @@ class Agent(GradioMixin, BaseAgent[BaseERNIEBot]):
         This method should yield a sequence of (AgentStep, List[Message]) tuples based on the given
         prompt and optionally accompanying files.
         """
-        if False:
+        if TYPE_CHECKING:
+            # HACK
             # This conditional block is strictly for static type-checking purposes (e.g., mypy)
             # and will not be executed.
             only_for_mypy_type_check: Tuple[AgentStep, List[Message]] = (DEFAULT_FINISH_STEP, [])
