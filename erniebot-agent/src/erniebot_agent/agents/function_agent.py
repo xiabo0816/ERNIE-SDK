@@ -13,7 +13,16 @@
 # limitations under the License.
 
 import logging
-from typing import Final, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import (
+    AsyncIterator,
+    Final,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 from erniebot_agent.agents.agent import Agent
 from erniebot_agent.agents.callback.callback_manager import CallbackManager
@@ -31,7 +40,12 @@ from erniebot_agent.agents.schema import (
 from erniebot_agent.chat_models.erniebot import BaseERNIEBot
 from erniebot_agent.file import File, FileManager
 from erniebot_agent.memory import Memory
-from erniebot_agent.memory.messages import FunctionMessage, HumanMessage, Message
+from erniebot_agent.memory.messages import (
+    AIMessage,
+    FunctionMessage,
+    HumanMessage,
+    Message,
+)
 from erniebot_agent.tools.base import BaseTool
 from erniebot_agent.tools.tool_manager import ToolManager
 
@@ -136,7 +150,7 @@ class FunctionAgent(Agent):
         chat_history.append(run_input)
 
         for tool in self._first_tools:
-            curr_step, new_messages = await self._step(chat_history, selected_tool=tool)
+            curr_step, new_messages = await self._call_first_tools(chat_history, selected_tool=tool)
             if not isinstance(curr_step, EndStep):
                 chat_history.extend(new_messages)
                 num_steps_taken += 1
@@ -167,23 +181,122 @@ class FunctionAgent(Agent):
         response = self._create_stopped_response(chat_history, steps_taken)
         return response
 
-    async def _step(
+    async def _call_first_tools(
         self, chat_history: List[Message], selected_tool: Optional[BaseTool] = None
     ) -> Tuple[AgentStep, List[Message]]:
-        new_messages: List[Message] = []
         input_messages = self.memory.get_messages() + chat_history
-        if selected_tool is not None:
-            tool_choice = {"type": "function", "function": {"name": selected_tool.tool_name}}
-            llm_resp = await self.run_llm(
-                messages=input_messages,
-                functions=[selected_tool.function_call_schema()],  # only regist one tool
-                tool_choice=tool_choice,
-            )
-        else:
+        if selected_tool is None:
             llm_resp = await self.run_llm(messages=input_messages)
+            return await self._process_step(llm_resp, chat_history)
 
+        tool_choice = {"type": "function", "function": {"name": selected_tool.tool_name}}
+        llm_resp = await self.run_llm(
+            messages=input_messages,
+            functions=[selected_tool.function_call_schema()],  # only regist one tool
+            tool_choice=tool_choice,
+        )
+        return await self._process_step(llm_resp, chat_history)
+
+    async def _step(self, chat_history: List[Message]) -> Tuple[AgentStep, List[Message]]:
+        """Run a step of the agent.
+        Args:
+            chat_history: The chat history to provide to the agent.
+        Returns:
+            A tuple of an agent step and a list of new messages.
+        """
+        input_messages = self.memory.get_messages() + chat_history
+        llm_resp = await self.run_llm(messages=input_messages)
+        return await self._process_step(llm_resp, chat_history)
+
+    async def _step_stream(
+        self, chat_history: List[Message]
+    ) -> AsyncIterator[Tuple[AgentStep, List[Message]]]:
+        """Run a step of the agent in streaming mode.
+        Args:
+            chat_history: The chat history to provide to the agent.
+        Returns:
+            An async iterator that yields a tuple of an agent step and a list ofnew messages.
+        """
+        input_messages = self.memory.get_messages() + chat_history
+        async for llm_resp in self.run_llm_stream(messages=input_messages):
+            yield await self._process_step(llm_resp, chat_history)
+
+    async def _run_stream(
+        self, prompt: str, files: Optional[Sequence[File]] = None
+    ) -> AsyncIterator[Tuple[AgentStep, List[Message]]]:
+        """Run the agent with the given prompt and files in streaming mode.
+        Args:
+            prompt: The prompt for the agent to run.
+            files: A list of files for the agent to use. If `None`, use an empty
+                list.
+        Returns:
+            If `stream` is `False`, an agent response object. If `stream` is
+            `True`, an async iterator that yields agent steps one by one.
+        """
+        chat_history: List[Message] = []
+        steps_taken: List[AgentStep] = []
+
+        run_input = await HumanMessage.create_with_files(
+            prompt, files or [], include_file_urls=self.file_needs_url
+        )
+
+        num_steps_taken = 0
+        chat_history.append(run_input)
+
+        for tool in self._first_tools:
+            curr_step, new_messages = await self._call_first_tools(chat_history, selected_tool=tool)
+            if not isinstance(curr_step, EndStep):
+                chat_history.extend(new_messages)
+                num_steps_taken += 1
+                steps_taken.append(curr_step)
+            else:
+                # If tool choice not work, skip this round
+                _logger.warning(f"Selected tool [{tool.tool_name}] not work")
+
+        is_finished = False
+        new_messages = []
+        end_step_msgs = []
+        while is_finished is False:
+            # IMPORTANT~! We use following code to get the response from LLM
+            # When finish_reason is fuction_call, run_llm_stream return all info in one step, but
+            # When finish_reason is normal chat, run_llm_stream return info in multiple steps.
+            async for curr_step, new_messages in self._step_stream(chat_history):
+                if isinstance(curr_step, ToolStep):
+                    steps_taken.append(curr_step)
+                    yield curr_step, new_messages
+
+                elif isinstance(curr_step, PluginStep):
+                    steps_taken.append(curr_step)
+                    # 预留 调用了Plugin之后不结束的接口
+
+                    # 此处为调用了Plugin之后直接结束的Plugin
+                    curr_step = DEFAULT_FINISH_STEP
+                    yield curr_step, new_messages
+
+                elif isinstance(curr_step, EndStep):
+                    is_finished = True
+                    end_step_msgs.extend(new_messages)
+                    yield curr_step, new_messages
+                else:
+                    raise RuntimeError("Invalid step type")
+            chat_history.extend(new_messages)
+
+        self.memory.add_message(run_input)
+        end_step_msg = AIMessage(content="".join([item.content for item in end_step_msgs]))
+        self.memory.add_message(end_step_msg)
+
+    async def _process_step(self, llm_resp, chat_history) -> Tuple[AgentStep, List[Message]]:
+        """Process and execute a step of the agent from LLM response.
+        Args:
+            llm_resp: The LLM response to convert.
+            chat_history: The chat history to provide to the agent.
+        Returns:
+            A tuple of an agent step and a list of new messages.
+        """
+        new_messages: List[Message] = []
         output_message = llm_resp.message  # AIMessage
         new_messages.append(output_message)
+        # handle function call
         if output_message.function_call is not None:
             tool_name = output_message.function_call["name"]
             tool_args = output_message.function_call["arguments"]
@@ -198,6 +311,7 @@ class FunctionAgent(Agent):
                 ),
                 new_messages,
             )
+        # handle plugin info with input/output files
         elif output_message.plugin_info is not None:
             file_manager = self.get_file_manager()
             return (
